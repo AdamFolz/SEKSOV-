@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
-from .domain import Batch, Injection, InjectionRoute, utcnow
+from .domain import ActiveBatchError, Batch, Injection, InjectionRoute, utcnow
 
 
 def _adapt_decimal(value: Decimal) -> str:
@@ -49,6 +49,8 @@ class Storage:
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 telegram_user_id INTEGER NOT NULL UNIQUE,
+                display_name TEXT,
+                username TEXT,
                 created_at TEXT NOT NULL
             );
 
@@ -74,23 +76,41 @@ class Storage:
                 injected_at TEXT NOT NULL,
                 route TEXT NOT NULL,
                 site TEXT NOT NULL,
-                volume_ml DECIMAL NOT NULL
+                volume_ml DECIMAL NOT NULL,
+                remaining_after_ml DECIMAL
             );
 
             CREATE INDEX IF NOT EXISTS idx_injections_user_time
                 ON injections(user_id, injected_at DESC, id DESC);
             """
         )
+        self._ensure_column("users", "display_name", "TEXT")
+        self._ensure_column("users", "username", "TEXT")
+        self._ensure_column("injections", "remaining_after_ml", "DECIMAL")
 
-    def get_or_create_user(self, telegram_user_id: int) -> int:
+    def _ensure_column(self, table: str, column: str, definition: str) -> None:
+        columns = {row["name"] for row in self.connection.execute(f"PRAGMA table_info({table})").fetchall()}
+        if column not in columns:
+            self.connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    def get_or_create_user(
+        self,
+        telegram_user_id: int,
+        display_name: str | None = None,
+        username: str | None = None,
+    ) -> int:
         row = self.connection.execute(
             "SELECT id FROM users WHERE telegram_user_id = ?", (telegram_user_id,)
         ).fetchone()
         if row:
+            self.connection.execute(
+                "UPDATE users SET display_name = COALESCE(?, display_name), username = COALESCE(?, username) WHERE id = ?",
+                (display_name, username, int(row["id"])),
+            )
             return int(row["id"])
         cursor = self.connection.execute(
-            "INSERT INTO users (telegram_user_id, created_at) VALUES (?, ?)",
-            (telegram_user_id, _dt_to_text(utcnow())),
+            "INSERT INTO users (telegram_user_id, display_name, username, created_at) VALUES (?, ?, ?, ?)",
+            (telegram_user_id, display_name, username, _dt_to_text(utcnow())),
         )
         return int(cursor.lastrowid)
 
@@ -102,12 +122,11 @@ class Storage:
         saline_volume_ml: Decimal,
     ) -> Batch:
         user_id = self.get_or_create_user(telegram_user_id)
+        existing = self.get_current_batch(telegram_user_id)
+        if existing:
+            raise ActiveBatchError("У вас уже есть активная партия. Сначала используйте текущую партию.")
         now = utcnow()
         with self.connection:
-            self.connection.execute(
-                "UPDATE batches SET is_current = 0 WHERE user_id = ? AND is_current = 1",
-                (user_id,),
-            )
             cursor = self.connection.execute(
                 """
                 INSERT INTO batches (
@@ -150,6 +169,18 @@ class Storage:
         ).fetchone()
         return self._batch_from_row(row) if row else None
 
+    def deactivate_current_batch(self, telegram_user_id: int) -> Batch | None:
+        batch = self.get_current_batch(telegram_user_id)
+        if not batch:
+            return None
+        self.connection.execute(
+            "UPDATE batches SET is_current = 0 WHERE id = ? AND user_id = ?",
+            (batch.id, batch.user_id),
+        )
+        return self._batch_from_row(
+            self.connection.execute("SELECT * FROM batches WHERE id = ?", (batch.id,)).fetchone()
+        )
+
     def record_injection(
         self,
         telegram_user_id: int,
@@ -161,18 +192,21 @@ class Storage:
         user_id = self.get_or_create_user(telegram_user_id)
         now = utcnow()
         with self.connection:
+            remaining_after_ml = batch.remaining_volume_ml - volume_ml
             cursor = self.connection.execute(
                 """
-                INSERT INTO injections (user_id, batch_id, injected_at, route, site, volume_ml)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO injections (
+                    user_id, batch_id, injected_at, route, site, volume_ml, remaining_after_ml
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (user_id, batch.id, _dt_to_text(now), route.value, site, volume_ml),
+                (user_id, batch.id, _dt_to_text(now), route.value, site, volume_ml, remaining_after_ml),
             )
+            is_current = 0 if remaining_after_ml <= 0 else 1
             self.connection.execute(
-                "UPDATE batches SET remaining_volume_ml = remaining_volume_ml - ? WHERE id = ? AND user_id = ?",
-                (volume_ml, batch.id, user_id),
+                "UPDATE batches SET remaining_volume_ml = ?, is_current = ? WHERE id = ? AND user_id = ?",
+                (remaining_after_ml, is_current, batch.id, user_id),
             )
-        return Injection(int(cursor.lastrowid), user_id, batch.id, now, route, site, volume_ml)
+        return Injection(int(cursor.lastrowid), user_id, batch.id, now, route, site, volume_ml, remaining_after_ml)
 
     def get_last_injections(self, telegram_user_id: int, limit: int = 2) -> list[Injection]:
         user_id = self.get_or_create_user(telegram_user_id)
@@ -212,4 +246,5 @@ class Storage:
             route=InjectionRoute(row["route"]),
             site=row["site"],
             volume_ml=Decimal(row["volume_ml"]),
+            remaining_after_ml=Decimal(row["remaining_after_ml"]) if row["remaining_after_ml"] is not None else None,
         )

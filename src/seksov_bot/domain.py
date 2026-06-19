@@ -39,6 +39,15 @@ SITES_BY_ROUTE: dict[InjectionRoute, tuple[str, ...]] = {
 
 
 @dataclass(frozen=True)
+class User:
+    id: int
+    telegram_user_id: int
+    display_name: str | None
+    username: str | None
+    created_at: datetime
+
+
+@dataclass(frozen=True)
 class Batch:
     id: int
     user_id: int
@@ -60,6 +69,11 @@ class Injection:
     route: InjectionRoute
     site: str
     volume_ml: Decimal
+    remaining_after_ml: Decimal | None
+
+
+class ActiveBatchError(ValueError):
+    """Raised when a user tries to create a new batch before finishing the current one."""
 
 
 class DomainError(ValueError):

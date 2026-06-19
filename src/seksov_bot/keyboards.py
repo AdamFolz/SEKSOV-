@@ -1,19 +1,24 @@
+from decimal import Decimal
+
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
-from .domain import INTRAMUSCULAR_SITES, INTRAVENOUS_SITES, InjectionRoute
+from .domain import INTRAMUSCULAR_SITES, INTRAVENOUS_SITES, InjectionRoute, format_ml
 
 BTN_NEW_BATCH = "➕ Новая партия"
-BTN_RECORD = "💉 Зафиксировать приём"
 BTN_STATUS = "📊 Статус"
 BTN_LAST = "🕘 Последний приём"
 BTN_HISTORY = "📜 История"
 BTN_CANCEL = "❌ Отмена"
 
 
-def main_keyboard() -> ReplyKeyboardMarkup:
+def record_button_text(standard_dose_ml: Decimal) -> str:
+    return f"✅ Зафиксировать {format_ml(standard_dose_ml)}"
+
+
+def main_keyboard(standard_dose_ml: Decimal) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=BTN_RECORD), KeyboardButton(text=BTN_STATUS)],
+            [KeyboardButton(text=record_button_text(standard_dose_ml)), KeyboardButton(text=BTN_STATUS)],
             [KeyboardButton(text=BTN_NEW_BATCH)],
             [KeyboardButton(text=BTN_LAST), KeyboardButton(text=BTN_HISTORY)],
         ],
