@@ -6,6 +6,7 @@ from .domain import INTRAMUSCULAR_SITES, INTRAVENOUS_SITES, InjectionRoute, form
 
 BTN_NEW_BATCH = "➕ Новая партия"
 BTN_STATUS = "📊 Статус"
+BTN_FINISH_BATCH = "🏁 Завершить партию"
 BTN_LAST = "🕘 Последний приём"
 BTN_HISTORY = "📜 История"
 BTN_CANCEL = "❌ Отмена"
@@ -19,7 +20,7 @@ def main_keyboard(standard_dose_ml: Decimal) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=record_button_text(standard_dose_ml)), KeyboardButton(text=BTN_STATUS)],
-            [KeyboardButton(text=BTN_NEW_BATCH)],
+            [KeyboardButton(text=BTN_NEW_BATCH), KeyboardButton(text=BTN_FINISH_BATCH)],
             [KeyboardButton(text=BTN_LAST), KeyboardButton(text=BTN_HISTORY)],
         ],
         resize_keyboard=True,

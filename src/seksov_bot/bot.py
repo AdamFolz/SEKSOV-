@@ -20,8 +20,9 @@ from .domain import (
 )
 from .keyboards import (
     BTN_CANCEL,
+    BTN_FINISH_BATCH,
     BTN_HISTORY,
-    BTN_LAST, 
+    BTN_LAST,
     BTN_NEW_BATCH,
     BTN_STATUS,
     cancel_keyboard,
@@ -71,7 +72,7 @@ def build_router(
 
     @router.message(CommandStart())
     async def start(message: Message, state: FSMContext) -> None:
-		        if not await ensure_authorized(message):
+        if not await ensure_authorized(message):
             return
         await state.clear()
         remember_user(message)
@@ -224,6 +225,20 @@ def build_router(
         await state.clear()
         await message.answer(
             saved_injection_message(current, previous[0] if previous else None, display_batch),
+            reply_markup=kb(),
+        )
+
+
+    @router.message(F.text == BTN_FINISH_BATCH)
+    async def finish_batch(message: Message) -> None:
+        if not await ensure_authorized(message):
+            return
+        batch = storage.deactivate_current_batch(message.from_user.id)
+        if not batch:
+            await message.answer("Активной партии нет. Создайте новую партию.", reply_markup=kb())
+            return
+        await message.answer(
+            "🏁 Текущая партия завершена. История введений сохранена, теперь можно создать новую партию.",
             reply_markup=kb(),
         )
 
