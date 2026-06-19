@@ -1,0 +1,1 @@
+"""SEKSOV Telegram bot package."""
