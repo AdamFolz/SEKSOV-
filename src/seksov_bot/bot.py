@@ -21,9 +21,9 @@ from .domain import (
 from .keyboards import (
     BTN_CANCEL,
     BTN_HISTORY,
-    BTN_LAST,
+    BTN_LAST, 
     BTN_NEW_BATCH,
-  BTN_STATUS,
+    BTN_STATUS,
     cancel_keyboard,
     main_keyboard,
     record_button_text,
@@ -45,12 +45,23 @@ class RecordInjection(StatesGroup):
     site = State()
 
 
-def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
+def build_router(
+    storage: Storage,
+    standard_dose_ml: Decimal,
+    authorized_user_ids: tuple[int, ...] = (),
+) -> Router:
     router = Router()
     record_text = record_button_text(standard_dose_ml)
 
     def kb():
         return main_keyboard(standard_dose_ml)
+
+    async def ensure_authorized(message: Message) -> bool:
+        user = message.from_user
+        if user and (not authorized_user_ids or user.id in authorized_user_ids):
+            return True
+        await message.answer("Доступ к боту ограничен. Обратитесь к владельцу бота.")
+        return False
 
     def remember_user(message: Message) -> int:
         user = message.from_user
@@ -60,6 +71,8 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message(CommandStart())
     async def start(message: Message, state: FSMContext) -> None:
+		        if not await ensure_authorized(message):
+            return
         await state.clear()
         remember_user(message)
         await message.answer(
@@ -69,11 +82,15 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message(F.text == BTN_CANCEL)
     async def cancel(message: Message, state: FSMContext) -> None:
+        if not await ensure_authorized(message):
+            return
         await state.clear()
         await message.answer("Действие отменено.", reply_markup=kb())
 
     @router.message(F.text == BTN_NEW_BATCH)
     async def new_batch(message: Message, state: FSMContext) -> None:
+        if not await ensure_authorized(message):
+            return
         remember_user(message)
         active_batch = storage.get_current_batch(message.from_user.id)
         if active_batch:
@@ -89,6 +106,8 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message(NewBatch.drug_amount)
     async def new_batch_amount(message: Message, state: FSMContext) -> None:
+        if not await ensure_authorized(message):
+            return
         try:
             amount = parse_positive_decimal(message.text or "", "Количество препарата")
         except DomainError as exc:
@@ -100,6 +119,8 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message(NewBatch.drug_unit)
     async def new_batch_unit(message: Message, state: FSMContext) -> None:
+        if not await ensure_authorized(message):
+            return
         try:
             unit = validate_drug_unit(message.text or "")
         except DomainError as exc:
@@ -111,6 +132,8 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message(NewBatch.saline_volume)
     async def new_batch_saline(message: Message, state: FSMContext) -> None:
+        if not await ensure_authorized(message):
+            return
         try:
             saline = parse_positive_decimal(message.text or "", "Количество физраствора")
         except DomainError as exc:
@@ -133,6 +156,8 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message(F.text == record_text)
     async def record_start(message: Message, state: FSMContext) -> None:
+        if not await ensure_authorized(message):
+            return
         batch = storage.get_current_batch(message.from_user.id)
         if not batch:
             await message.answer("Сначала создайте новую партию.", reply_markup=kb())
@@ -151,6 +176,8 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message(RecordInjection.route)
     async def record_route(message: Message, state: FSMContext) -> None:
+        if not await ensure_authorized(message):
+            return
         try:
             route = validate_route(message.text or "")
         except DomainError as exc:
@@ -162,6 +189,8 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message(RecordInjection.site)
     async def record_site(message: Message, state: FSMContext) -> None:
+        if not await ensure_authorized(message):
+            return
         data = await state.get_data()
         route = validate_route(data["route"])
         try:
@@ -200,6 +229,8 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message(F.text == BTN_STATUS)
     async def status(message: Message) -> None:
+        if not await ensure_authorized(message):
+            return
         batch = storage.get_current_batch(message.from_user.id)
         if not batch:
             await message.answer("Текущей партии нет. Создайте новую партию.", reply_markup=kb())
@@ -209,6 +240,8 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message(F.text == BTN_LAST)
     async def last(message: Message) -> None:
+        if not await ensure_authorized(message):
+            return
         injections = storage.get_last_injections(message.from_user.id, limit=1)
         if not injections:
             await message.answer("Приёмов ещё не было.", reply_markup=kb())
@@ -217,6 +250,8 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message(F.text == BTN_HISTORY)
     async def history(message: Message) -> None:
+        if not await ensure_authorized(message):
+            return
         injections = storage.get_history(message.from_user.id, limit=10)
         if not injections:
             await message.answer("История пуста.", reply_markup=kb())
@@ -226,6 +261,8 @@ def build_router(storage: Storage, standard_dose_ml: Decimal) -> Router:
 
     @router.message()
     async def fallback(message: Message) -> None:
+        if not await ensure_authorized(message):
+            return
         await message.answer("Выберите действие кнопкой ниже.", reply_markup=kb())
 
     return router

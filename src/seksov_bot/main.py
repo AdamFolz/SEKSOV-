@@ -17,7 +17,13 @@ async def run() -> None:
     storage.migrate()
     bot = Bot(settings.bot_token)
     dispatcher = Dispatcher()
-    dispatcher.include_router(build_router(storage, settings.standard_dose_ml))
+    dispatcher.include_router(
+        build_router(
+            storage,
+            settings.standard_dose_ml,
+            authorized_user_ids=settings.authorized_telegram_user_ids,
+        )
+    )
     try:
         await dispatcher.start_polling(bot)
     finally:
