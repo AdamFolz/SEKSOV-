@@ -23,7 +23,7 @@ from .keyboards import (
     BTN_HISTORY,
     BTN_LAST,
     BTN_NEW_BATCH,
-    BTN_STATUS,
+  BTN_STATUS,
     cancel_keyboard,
     main_keyboard,
     record_button_text,
