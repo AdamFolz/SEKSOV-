@@ -21,7 +21,7 @@ from .domain import (
 from .keyboards import (
     BTN_CANCEL,
     BTN_HISTORY,
-    BTN_LAST,
+    BTN_LAST, 
     BTN_NEW_BATCH,
     BTN_STATUS,
     cancel_keyboard,
@@ -71,7 +71,7 @@ def build_router(
 
     @router.message(CommandStart())
     async def start(message: Message, state: FSMContext) -> None:
-        if not await ensure_authorized(message):
+		        if not await ensure_authorized(message):
             return
         await state.clear()
         remember_user(message)
