@@ -14,14 +14,42 @@ Telegram-бот для личной фиксации введения одног
 
 ## Быстрый старт
 
+### Windows / PowerShell
+
+Самый простой способ — запускать готовый файл из корня проекта:
+
+```powershell
+.\start.ps1
+```
+
+Если PowerShell запрещает запуск скриптов, используйте:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+Также можно запустить через cmd/bat:
+
+```powershell
+.\start.bat
+```
+
+Скрипт сам создаст `.venv`, установит зависимости из `requirements.txt`, создаст `.env` из `.env.example` при первом запуске и попросит заполнить `BOT_TOKEN` / `AUTHORIZED_TELEGRAM_USER_IDS`.
+
+Важно: команды `source .venv/bin/activate` и `.venv/bin/activate` — это Linux/macOS, в PowerShell они не работают. Для ручного запуска на Windows используйте `.\.venv\Scripts\Activate.ps1`.
+
+### Linux / macOS
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev]'
+pip install -r requirements.txt
 cp .env.example .env
-# заполните BOT_TOKEN в .env
-seksov-bot
+# заполните BOT_TOKEN и AUTHORIZED_TELEGRAM_USER_IDS в .env
+python run.py
 ```
+
+Если проект установлен как пакет через `pip install -e .`, можно запускать и командой `seksov-bot`.
 
 ## Настройки
 
