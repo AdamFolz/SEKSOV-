@@ -63,6 +63,11 @@ def build_router(
 
     def user_profile(message: Message) -> tuple[int, str | None, str | None] | None:
         user = message.from_user
+        chat = message.chat
+        if chat.type != "private":
+            await message.answer("Медицинские записи доступны только в личном чате с ботом.")
+            return False
+        if user and (not authorized_user_ids or user.id in authorized_user_ids):
         if not user:
             return None
         return user.id, user.full_name, user.username
