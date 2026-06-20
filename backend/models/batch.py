@@ -22,4 +22,4 @@ class Batch(Base):
     
     # Relationships
     user = relationship("User", back_populates="batches")
-    injections = relationship("Injection", back_populates="batch")
+    injections = relationship("Injection", back_populates="batch", cascade="all, delete-orphan")

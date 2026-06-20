@@ -15,7 +15,6 @@ class InjectionBase(BaseModel):
 class InjectionCreate(InjectionBase):
     """Injection creation schema."""
     batch_id: int
-    user_id: int
 
 
 class Injection(InjectionBase):
