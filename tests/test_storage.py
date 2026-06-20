@@ -131,3 +131,35 @@ def test_deactivate_current_batch_allows_new_batch_for_unusable_leftover(tmp_pat
     )
     assert storage.get_current_batch(100).id == new_batch.id
     storage.close()
+
+
+def test_batch_with_unusable_remainder_becomes_inactive_after_injection(tmp_path) -> None:
+    storage = Storage(tmp_path / "bot.sqlite3")
+    storage.migrate()
+
+    old_batch = storage.create_batch(
+        telegram_user_id=100,
+        drug_amount=Decimal("10"),
+        drug_unit="мг",
+        saline_volume_ml=Decimal("5"),
+    )
+    injection = storage.record_injection(
+        100,
+        old_batch,
+        InjectionRoute.INTRAMUSCULAR,
+        "правая нога",
+        Decimal("2"),
+    )
+    assert injection.remaining_after_ml == Decimal("3")
+    assert storage.get_current_batch(100).remaining_volume_ml == Decimal("3")
+
+    storage.record_injection(
+        100,
+        storage.get_current_batch(100),
+        InjectionRoute.INTRAMUSCULAR,
+        "левая нога",
+        Decimal("2"),
+    )
+
+    assert storage.get_current_batch(100) is None
+    storage.close()

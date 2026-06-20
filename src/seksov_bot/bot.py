@@ -58,6 +58,10 @@ def build_router(
 
     async def ensure_authorized(message: Message) -> bool:
         user = message.from_user
+        chat = message.chat
+        if chat.type != "private":
+            await message.answer("Медицинские записи доступны только в личном чате с ботом.")
+            return False
         if user and (not authorized_user_ids or user.id in authorized_user_ids):
             return True
         await message.answer("Доступ к боту ограничен. Обратитесь к владельцу бота.")
