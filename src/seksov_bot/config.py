@@ -16,6 +16,7 @@ class Settings:
     database_path: Path
     standard_dose_ml: Decimal
     authorized_telegram_user_ids: tuple[int, ...]
+    registration_code: str | None
 
 
 def parse_authorized_user_ids(raw_value: str) -> tuple[int, ...]:
@@ -45,9 +46,11 @@ def load_settings() -> Settings:
     except DomainError as exc:
         raise RuntimeError(str(exc)) from exc
     authorized_user_ids = parse_authorized_user_ids(os.getenv("AUTHORIZED_TELEGRAM_USER_IDS", ""))
+    registration_code = os.getenv("REGISTRATION_CODE", "").strip() or None
     return Settings(
         bot_token=token,
         database_path=database_path,
         standard_dose_ml=dose,
         authorized_telegram_user_ids=authorized_user_ids,
+        registration_code=registration_code,
     )

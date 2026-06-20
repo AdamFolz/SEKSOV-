@@ -131,3 +131,17 @@ def test_deactivate_current_batch_allows_new_batch_for_unusable_leftover(tmp_pat
     )
     assert storage.get_current_batch(100).id == new_batch.id
     storage.close()
+
+
+def test_user_authorization_can_be_persisted(tmp_path) -> None:
+    storage = Storage(tmp_path / "bot.sqlite3")
+    storage.migrate()
+
+    assert storage.is_user_authorized(100) is False
+    user_id = storage.authorize_user(100, display_name="Ivan", username="ivan")
+
+    row = storage.connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    assert storage.is_user_authorized(100) is True
+    assert row["display_name"] == "Ivan"
+    assert row["username"] == "ivan"
+    storage.close()

@@ -22,16 +22,19 @@ from .keyboards import (
     BTN_CANCEL,
     BTN_FINISH_BATCH,
     BTN_HISTORY,
+    BTN_OTHER_UNIT,
     BTN_LAST,
     BTN_NEW_BATCH,
     BTN_STATUS,
     cancel_keyboard,
+    dose_options,
+    drug_unit_keyboard,
     main_keyboard,
     record_button_text,
     route_keyboard,
     site_keyboard,
 )
-from .messages import batch_status, injection_details, injection_line, saved_injection_message
+from .messages import batch_status, history_message, injection_details, saved_injection_message
 from .storage import Storage
 
 
@@ -50,25 +53,50 @@ def build_router(
     storage: Storage,
     standard_dose_ml: Decimal,
     authorized_user_ids: tuple[int, ...] = (),
+    registration_code: str | None = None,
 ) -> Router:
     router = Router()
-    record_text = record_button_text(standard_dose_ml)
+    dose_by_button = {record_button_text(volume): volume for volume in dose_options(standard_dose_ml)}
 
     def kb():
         return main_keyboard(standard_dose_ml)
 
-    async def ensure_authorized(message: Message) -> bool:
+    def user_profile(message: Message) -> tuple[int, str | None, str | None] | None:
         user = message.from_user
-        if user and (not authorized_user_ids or user.id in authorized_user_ids):
-            return True
-        await message.answer("Доступ к боту ограничен. Обратитесь к владельцу бота.")
-        return False
+        if not user:
+            return None
+        return user.id, user.full_name, user.username
 
     def remember_user(message: Message) -> int:
-        user = message.from_user
-        display_name = user.full_name if user else None
-        username = user.username if user else None
-        return storage.get_or_create_user(user.id, display_name=display_name, username=username)
+        profile = user_profile(message)
+        if not profile:
+            raise RuntimeError("Telegram user is missing from message")
+        telegram_user_id, display_name, username = profile
+        return storage.get_or_create_user(
+            telegram_user_id,
+            display_name=display_name,
+            username=username,
+        )
+
+    async def ensure_authorized(message: Message) -> bool:
+        profile = user_profile(message)
+        if not profile:
+            await message.answer("Не удалось определить пользователя Telegram.")
+            return False
+        telegram_user_id, display_name, username = profile
+        if telegram_user_id in authorized_user_ids or storage.is_user_authorized(telegram_user_id):
+            return True
+        if not authorized_user_ids and not registration_code:
+            return True
+        if registration_code and (message.text or "").strip() == registration_code:
+            storage.authorize_user(telegram_user_id, display_name=display_name, username=username)
+            await message.answer("✅ Доступ открыт. Теперь можно пользоваться ботом.", reply_markup=kb())
+            return True
+        if registration_code:
+            await message.answer("🔐 Отправьте код доступа одним сообщением, чтобы подключиться к боту.")
+            return False
+        await message.answer("Доступ к боту ограничен. Обратитесь к владельцу бота.")
+        return False
 
     @router.message(CommandStart())
     async def start(message: Message, state: FSMContext) -> None:
@@ -116,16 +144,17 @@ def build_router(
             return
         await state.update_data(drug_amount=str(amount))
         await state.set_state(NewBatch.drug_unit)
-        await message.answer("Введите единицу количества препарата, например мг, мкг или ЕД:")
+        await message.answer("Выберите единицу препарата:", reply_markup=drug_unit_keyboard())
 
     @router.message(NewBatch.drug_unit)
     async def new_batch_unit(message: Message, state: FSMContext) -> None:
         if not await ensure_authorized(message):
             return
+        raw_unit = "" if message.text == BTN_OTHER_UNIT else (message.text or "")
         try:
-            unit = validate_drug_unit(message.text or "")
+            unit = validate_drug_unit(raw_unit)
         except DomainError as exc:
-            await message.answer(str(exc))
+            await message.answer("Введите единицу вручную, например мг, мкг или ЕД:", reply_markup=cancel_keyboard())
             return
         await state.update_data(drug_unit=unit)
         await state.set_state(NewBatch.saline_volume)
@@ -155,16 +184,17 @@ def build_router(
         await state.clear()
         await message.answer("✅ Новая партия создана.\n\n" + batch_status(batch), reply_markup=kb())
 
-    @router.message(F.text == record_text)
+    @router.message(lambda message: message.text in dose_by_button)
     async def record_start(message: Message, state: FSMContext) -> None:
         if not await ensure_authorized(message):
             return
+        volume_ml = dose_by_button[message.text]
         batch = storage.get_current_batch(message.from_user.id)
         if not batch:
             await message.answer("Сначала создайте новую партию.", reply_markup=kb())
             return
         try:
-            ensure_enough_remaining(batch.remaining_volume_ml, standard_dose_ml)
+            ensure_enough_remaining(batch.remaining_volume_ml, volume_ml)
         except DomainError as exc:
             storage.deactivate_current_batch(message.from_user.id)
             await message.answer(
@@ -172,8 +202,9 @@ def build_router(
                 reply_markup=kb(),
             )
             return
+        await state.update_data(volume_ml=str(volume_ml))
         await state.set_state(RecordInjection.route)
-        await message.answer("Выберите способ введения:", reply_markup=route_keyboard())
+        await message.answer(f"{record_button_text(volume_ml)}. Способ введения:", reply_markup=route_keyboard())
 
     @router.message(RecordInjection.route)
     async def record_route(message: Message, state: FSMContext) -> None:
@@ -194,6 +225,7 @@ def build_router(
             return
         data = await state.get_data()
         route = validate_route(data["route"])
+        volume_ml = Decimal(data["volume_ml"])
         try:
             site = validate_site(route, message.text or "")
         except DomainError as exc:
@@ -205,7 +237,7 @@ def build_router(
             await message.answer("Текущая партия не найдена. Создайте новую партию.", reply_markup=kb())
             return
         try:
-            ensure_enough_remaining(batch.remaining_volume_ml, standard_dose_ml)
+            ensure_enough_remaining(batch.remaining_volume_ml, volume_ml)
         except DomainError as exc:
             await state.clear()
             storage.deactivate_current_batch(message.from_user.id)
@@ -215,7 +247,7 @@ def build_router(
             )
             return
         previous = storage.get_last_injections(message.from_user.id, limit=1)
-        current = storage.record_injection(message.from_user.id, batch, route, site, standard_dose_ml)
+        current = storage.record_injection(message.from_user.id, batch, route, site, volume_ml)
         updated_batch = storage.get_current_batch(message.from_user.id)
         display_batch = updated_batch or replace(
             batch,
@@ -227,7 +259,6 @@ def build_router(
             saved_injection_message(current, previous[0] if previous else None, display_batch),
             reply_markup=kb(),
         )
-
 
     @router.message(F.text == BTN_FINISH_BATCH)
     async def finish_batch(message: Message) -> None:
@@ -261,7 +292,7 @@ def build_router(
         if not injections:
             await message.answer("Приёмов ещё не было.", reply_markup=kb())
             return
-        await message.answer("🕘 Последний приём\n" + injection_details(injections[0]), reply_markup=kb())
+        await message.answer(injection_details(injections[0]), reply_markup=kb())
 
     @router.message(F.text == BTN_HISTORY)
     async def history(message: Message) -> None:
@@ -271,8 +302,7 @@ def build_router(
         if not injections:
             await message.answer("История пуста.", reply_markup=kb())
             return
-        lines = "\n".join(f"{index}. {injection_line(item)}" for index, item in enumerate(injections, 1))
-        await message.answer("📜 История последних приёмов\n" + lines, reply_markup=kb())
+        await message.answer(history_message(injections), reply_markup=kb())
 
     @router.message()
     async def fallback(message: Message) -> None:
