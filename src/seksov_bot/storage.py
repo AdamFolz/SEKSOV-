@@ -51,6 +51,7 @@ class Storage:
                 telegram_user_id INTEGER NOT NULL UNIQUE,
                 display_name TEXT,
                 username TEXT,
+                is_authorized INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             );
 
@@ -86,6 +87,7 @@ class Storage:
         )
         self._ensure_column("users", "display_name", "TEXT")
         self._ensure_column("users", "username", "TEXT")
+        self._ensure_column("users", "is_authorized", "INTEGER NOT NULL DEFAULT 0")
         self._ensure_column("injections", "remaining_after_ml", "DECIMAL")
 
     def _ensure_column(self, table: str, column: str, definition: str) -> None:
@@ -113,6 +115,23 @@ class Storage:
             (telegram_user_id, display_name, username, _dt_to_text(utcnow())),
         )
         return int(cursor.lastrowid)
+
+    def is_user_authorized(self, telegram_user_id: int) -> bool:
+        row = self.connection.execute(
+            "SELECT is_authorized FROM users WHERE telegram_user_id = ?",
+            (telegram_user_id,),
+        ).fetchone()
+        return bool(row and row["is_authorized"])
+
+    def authorize_user(
+        self,
+        telegram_user_id: int,
+        display_name: str | None = None,
+        username: str | None = None,
+    ) -> int:
+        user_id = self.get_or_create_user(telegram_user_id, display_name=display_name, username=username)
+        self.connection.execute("UPDATE users SET is_authorized = 1 WHERE id = ?", (user_id,))
+        return user_id
 
     def create_batch(
         self,

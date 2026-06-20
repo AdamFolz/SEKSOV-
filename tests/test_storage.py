@@ -162,4 +162,15 @@ def test_batch_with_unusable_remainder_becomes_inactive_after_injection(tmp_path
     )
 
     assert storage.get_current_batch(100) is None
+def test_user_authorization_can_be_persisted(tmp_path) -> None:
+    storage = Storage(tmp_path / "bot.sqlite3")
+    storage.migrate()
+
+    assert storage.is_user_authorized(100) is False
+    user_id = storage.authorize_user(100, display_name="Ivan", username="ivan")
+
+    row = storage.connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    assert storage.is_user_authorized(100) is True
+    assert row["display_name"] == "Ivan"
+    assert row["username"] == "ivan"
     storage.close()

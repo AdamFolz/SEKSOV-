@@ -4,53 +4,39 @@ from .domain import Batch, Injection, format_dt, format_ml
 
 
 def batch_status(batch: Batch, last_injection: Injection | None = None) -> str:
-    last_text = injection_line(last_injection) if last_injection else "приёмов ещё не было"
+    last_text = format_dt(last_injection.injected_at) if last_injection else "нет"
     return (
-        "📊 Текущая партия\n"
+        "📊 Статус\n"
+        f"Партия: {format_ml(batch.remaining_volume_ml)} / {format_ml(batch.total_volume_ml)}\n"
         f"Создана: {format_dt(batch.created_at)}\n"
         f"Препарат: {batch.drug_amount.normalize()} {batch.drug_unit}\n"
-        f"Исходный объём: {format_ml(batch.total_volume_ml)}\n"
-        f"Физраствор: {format_ml(batch.saline_volume_ml)}\n"
-        f"Текущий остаток: {format_ml(batch.remaining_volume_ml)} из {format_ml(batch.total_volume_ml)}\n"
-        f"Последний приём: {last_text}"
+        f"Последний: {last_text}"
     )
 
 
 def injection_line(injection: Injection) -> str:
-    remaining = (
-        f", остаток после введения: {format_ml(injection.remaining_after_ml)}"
-        if injection.remaining_after_ml is not None
-        else ""
-    )
+    remaining = format_ml(injection.remaining_after_ml) if injection.remaining_after_ml is not None else "—"
     return (
-        f"{format_dt(injection.injected_at)} — {injection.route.value}, "
-        f"{injection.site}, {format_ml(injection.volume_ml)}{remaining}"
+        f"{format_dt(injection.injected_at)} | {format_ml(injection.volume_ml)} | "
+        f"{injection.route.value}, {injection.site} | остаток {remaining}"
     )
 
 
 def injection_details(injection: Injection) -> str:
-    remaining = (
-        f"\nОстаток после введения: {format_ml(injection.remaining_after_ml)}"
-        if injection.remaining_after_ml is not None
-        else ""
-    )
-    return (
-        f"Дата и время: {format_dt(injection.injected_at)}\n"
-        f"Способ введения: {injection.route.value}\n"
-        f"Место введения: {injection.site}\n"
-        f"Объём введения: {format_ml(injection.volume_ml)}"
-        f"{remaining}"
-    )
+    return "🕘 Последний приём\n" + injection_line(injection)
+
+
+def history_message(injections: list[Injection]) -> str:
+    lines = [f"{index}. {injection_line(item)}" for index, item in enumerate(injections, 1)]
+    return "📜 История\n" + "\n".join(lines)
 
 
 def saved_injection_message(current: Injection, previous: Injection | None, batch: Batch) -> str:
-    previous_text = format_dt(previous.injected_at) if previous else "предыдущих приёмов не было"
+    previous_text = format_dt(previous.injected_at) if previous else "нет"
     return (
-        "✅ Приём сохранён\n\n"
-        f"Текущий приём: {format_dt(current.injected_at)}\n"
-        f"Предыдущий приём: {previous_text}\n"
-        f"Способ введения: {current.route.value}\n"
-        f"Место введения: {current.site}\n\n"
-        f"Остаток в текущей партии: {format_ml(batch.remaining_volume_ml)} "
-        f"из {format_ml(batch.total_volume_ml)}"
+        "✅ Сохранено\n"
+        f"Сейчас: {format_dt(current.injected_at)}\n"
+        f"Предыдущий: {previous_text}\n"
+        f"Введение: {format_ml(current.volume_ml)}, {current.route.value}, {current.site}\n"
+        f"Остаток: {format_ml(batch.remaining_volume_ml)} / {format_ml(batch.total_volume_ml)}"
     )
