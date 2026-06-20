@@ -1,38 +1,29 @@
-"""User endpoints."""
+"""User CRUD endpoints."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from database import get_db
-from schemas.user import User, UserCreate, UserUpdate
+from models.user import User as UserModel
+from schemas.auth import User as UserSchema
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 
-@router.get("/")
+@router.get("/", response_model=list[UserSchema])
 async def list_users(db: Session = Depends(get_db)):
     """List all users."""
-    return {"message": "List users endpoint - coming soon"}
+    users = db.query(UserModel).all()
+    return users
 
 
-@router.post("/")
-async def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    """Create a new user."""
-    return {"message": "Create user endpoint - coming soon", "user": user}
-
-
-@router.get("/{user_id}")
+@router.get("/{user_id}", response_model=UserSchema)
 async def get_user(user_id: int, db: Session = Depends(get_db)):
-    """Get a specific user."""
-    return {"message": f"Get user {user_id} endpoint - coming soon"}
-
-
-@router.put("/{user_id}")
-async def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
-    """Update a user."""
-    return {"message": f"Update user {user_id} endpoint - coming soon"}
-
-
-@router.delete("/{user_id}")
-async def delete_user(user_id: int, db: Session = Depends(get_db)):
-    """Delete a user."""
-    return {"message": f"Delete user {user_id} endpoint - coming soon"}
+    """Get a specific user by ID."""
+    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    return user

@@ -12,7 +12,7 @@ class BatchBase(BaseModel):
 
 class BatchCreate(BatchBase):
     """Batch creation schema."""
-    user_id: int
+    pass
 
 
 class BatchUpdate(BaseModel):

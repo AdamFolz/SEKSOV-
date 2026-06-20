@@ -14,10 +14,11 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     email = Column(String, unique=True, index=True, nullable=True)
+    hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    batches = relationship("Batch", back_populates="user")
-    injections = relationship("Injection", back_populates="user")
+    batches = relationship("Batch", back_populates="user", cascade="all, delete-orphan")
+    injections = relationship("Injection", back_populates="user", cascade="all, delete-orphan")
