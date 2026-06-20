@@ -201,7 +201,7 @@ class Storage:
                 """,
                 (user_id, batch.id, _dt_to_text(now), route.value, site, volume_ml, remaining_after_ml),
             )
-            is_current = 0 if remaining_after_ml <= 0 else 1
+            is_current = 0 if remaining_after_ml < volume_ml else 1
             self.connection.execute(
                 "UPDATE batches SET remaining_volume_ml = ?, is_current = ? WHERE id = ? AND user_id = ?",
                 (remaining_after_ml, is_current, batch.id, user_id),

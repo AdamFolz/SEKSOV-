@@ -25,3 +25,15 @@ def test_ensure_enough_remaining_blocks_overdraft() -> None:
     ensure_enough_remaining(Decimal("1.0"), Decimal("1.0"))
     with pytest.raises(DomainError):
         ensure_enough_remaining(Decimal("0.5"), Decimal("1.0"))
+
+
+@pytest.mark.parametrize("raw_value", ["NaN", "Infinity", "-Infinity"])
+def test_parse_positive_decimal_rejects_non_finite_values(raw_value: str) -> None:
+    with pytest.raises(DomainError):
+        parse_positive_decimal(raw_value, "dose")
+
+
+@pytest.mark.parametrize("raw_value", ["0.0004", "0,0004"])
+def test_parse_positive_decimal_rejects_values_that_round_to_zero(raw_value: str) -> None:
+    with pytest.raises(DomainError):
+        parse_positive_decimal(raw_value, "dose")
