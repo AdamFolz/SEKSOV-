@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SEKSOV Health</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero card glass">
+      <div>
+        <p class="eyebrow">SEKSOV HEALTH</p>
+        <h1>Контроль введений</h1>
+        <p id="subtitle">Красивый обзор партии, истории и остатка внутри Telegram.</p>
+      </div>
+      <div class="dna-orb"><span></span><span></span><span></span></div>
+    </section>
+
+    <section class="grid stats">
+      <article class="card metric">
+        <span>Остаток</span>
+        <strong id="remaining">—</strong>
+        <small id="remainingTotal">Нет активной партии</small>
+      </article>
+      <article class="card metric accent">
+        <span>Последнее</span>
+        <strong id="lastDose">—</strong>
+        <small id="lastMeta">Записей пока нет</small>
+      </article>
+    </section>
+
+    <section class="card progress-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">CURRENT BATCH</p>
+          <h2>Текущая партия</h2>
+        </div>
+        <span id="batchBadge" class="badge">—</span>
+      </div>
+      <div class="progress"><div id="progressFill"></div></div>
+      <div id="batchInfo" class="muted">Создайте партию в боте, чтобы увидеть красивую карточку.</div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">TIMELINE</p>
+          <h2>История</h2>
+        </div>
+        <span class="badge">до 30 записей</span>
+      </div>
+      <div id="history" class="timeline"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">BATCHES</p>
+          <h2>Партии</h2>
+        </div>
+      </div>
+      <div id="batches" class="batch-list"></div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

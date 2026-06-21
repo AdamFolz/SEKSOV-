@@ -22,7 +22,9 @@ async def run() -> None:
             storage,
             settings.standard_dose_ml,
             authorized_user_ids=settings.authorized_telegram_user_ids,
+            admin_user_ids=settings.admin_telegram_user_ids,
             registration_code=settings.registration_code,
+            web_app_url=settings.web_app_url,
         )
     )
     try:

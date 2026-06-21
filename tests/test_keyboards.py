@@ -38,3 +38,31 @@ def test_drug_unit_keyboard_contains_common_units() -> None:
 
     for unit in COMMON_DRUG_UNITS:
         assert unit in button_texts
+
+
+def test_main_keyboard_contains_export_action() -> None:
+    keyboard = main_keyboard(Decimal("1.0"))
+    button_texts = [button.text for row in keyboard.keyboard for button in row]
+
+    assert BTN_EXPORT in button_texts
+
+
+def test_main_keyboard_can_include_telegram_mini_app_button() -> None:
+    from seksov_bot.keyboards import BTN_WEB_APP
+
+    keyboard = main_keyboard(Decimal("1.0"), web_app_url="https://example.com/app")
+    buttons = [button for row in keyboard.keyboard for button in row]
+    web_button = next(button for button in buttons if button.text == BTN_WEB_APP)
+
+    assert web_button.web_app is not None
+    assert str(web_button.web_app.url) == "https://example.com/app"
+
+
+def test_main_keyboard_contains_safety_actions() -> None:
+    from seksov_bot.keyboards import BTN_BACKUP, BTN_UNDO_LAST
+
+    keyboard = main_keyboard(Decimal("1.0"))
+    button_texts = [button.text for row in keyboard.keyboard for button in row]
+
+    assert BTN_BACKUP in button_texts
+    assert BTN_UNDO_LAST in button_texts

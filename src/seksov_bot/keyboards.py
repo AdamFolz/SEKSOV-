@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
 from .domain import INTRAMUSCULAR_SITES, INTRAVENOUS_SITES, InjectionRoute, format_ml
 
@@ -9,6 +9,10 @@ BTN_STATUS = "📊 Статус"
 BTN_FINISH_BATCH = "🏁 Завершить партию"
 BTN_LAST = "🕘 Последний приём"
 BTN_HISTORY = "📜 История"
+BTN_EXPORT = "📤 Экспорт CSV"
+BTN_BACKUP = "💾 Бэкап"
+BTN_UNDO_LAST = "↩️ Отменить последнее"
+BTN_WEB_APP = "✨ Красивое приложение"
 BTN_CANCEL = "❌ Отмена"
 BTN_OTHER_UNIT = "✍️ Другая"
 COMMON_DRUG_UNITS = ("мг", "мкг", "ЕД", "мл")
@@ -28,16 +32,17 @@ def record_button_text(volume_ml: Decimal) -> str:
     return f"💉 {format_ml(volume_ml)}"
 
 
-def main_keyboard(standard_dose_ml: Decimal) -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=record_button_text(volume)) for volume in dose_options(standard_dose_ml)],
-            [KeyboardButton(text=BTN_STATUS), KeyboardButton(text=BTN_HISTORY)],
-            [KeyboardButton(text=BTN_NEW_BATCH), KeyboardButton(text=BTN_FINISH_BATCH)],
-            [KeyboardButton(text=BTN_LAST)],
-        ],
-        resize_keyboard=True,
-    )
+def main_keyboard(standard_dose_ml: Decimal, web_app_url: str | None = None) -> ReplyKeyboardMarkup:
+    rows = [
+        [KeyboardButton(text=record_button_text(volume)) for volume in dose_options(standard_dose_ml)],
+        [KeyboardButton(text=BTN_STATUS), KeyboardButton(text=BTN_HISTORY)],
+        [KeyboardButton(text=BTN_EXPORT), KeyboardButton(text=BTN_LAST)],
+        [KeyboardButton(text=BTN_BACKUP), KeyboardButton(text=BTN_UNDO_LAST)],
+    ]
+    if web_app_url:
+        rows.append([KeyboardButton(text=BTN_WEB_APP, web_app=WebAppInfo(url=web_app_url))])
+    rows.append([KeyboardButton(text=BTN_NEW_BATCH), KeyboardButton(text=BTN_FINISH_BATCH)])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
 def cancel_keyboard() -> ReplyKeyboardMarkup:

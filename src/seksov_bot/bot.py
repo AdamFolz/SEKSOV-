@@ -4,11 +4,12 @@ from dataclasses import replace
 from decimal import Decimal
 
 from aiogram import F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message
+from aiogram.types import BufferedInputFile, Message
 
+from .config import read_registration_code_from_env_file
 from .domain import (
     ActiveBatchError,
     DomainError,
@@ -19,13 +20,16 @@ from .domain import (
     validate_site,
 )
 from .keyboards import (
+    BTN_BACKUP,
     BTN_CANCEL,
+    BTN_EXPORT,
     BTN_FINISH_BATCH,
     BTN_HISTORY,
     BTN_OTHER_UNIT,
     BTN_LAST,
     BTN_NEW_BATCH,
     BTN_STATUS,
+    BTN_UNDO_LAST,
     cancel_keyboard,
     dose_options,
     drug_unit_keyboard,
@@ -34,7 +38,7 @@ from .keyboards import (
     route_keyboard,
     site_keyboard,
 )
-from .messages import batch_status, history_message, injection_details, saved_injection_message
+from .messages import batch_status, help_message, history_message, injection_details, injections_csv, saved_injection_message, undo_injection_message
 from .storage import Storage
 
 
@@ -53,21 +57,18 @@ def build_router(
     storage: Storage,
     standard_dose_ml: Decimal,
     authorized_user_ids: tuple[int, ...] = (),
+    admin_user_ids: tuple[int, ...] = (),
     registration_code: str | None = None,
+    web_app_url: str | None = None,
 ) -> Router:
     router = Router()
     dose_by_button = {record_button_text(volume): volume for volume in dose_options(standard_dose_ml)}
 
     def kb():
-        return main_keyboard(standard_dose_ml)
+        return main_keyboard(standard_dose_ml, web_app_url=web_app_url)
 
     def user_profile(message: Message) -> tuple[int, str | None, str | None] | None:
         user = message.from_user
-        chat = message.chat
-        if chat.type != "private":
-            await message.answer("Медицинские записи доступны только в личном чате с ботом.")
-            return False
-        if user and (not authorized_user_ids or user.id in authorized_user_ids):
         if not user:
             return None
         return user.id, user.full_name, user.username
@@ -83,25 +84,62 @@ def build_router(
             username=username,
         )
 
+    def current_registration_code() -> str | None:
+        return read_registration_code_from_env_file() or registration_code
+
     async def ensure_authorized(message: Message) -> bool:
         profile = user_profile(message)
         if not profile:
             await message.answer("Не удалось определить пользователя Telegram.")
             return False
         telegram_user_id, display_name, username = profile
+        active_registration_code = current_registration_code()
         if telegram_user_id in authorized_user_ids or storage.is_user_authorized(telegram_user_id):
             return True
-        if not authorized_user_ids and not registration_code:
+        if not authorized_user_ids and not active_registration_code:
             return True
-        if registration_code and (message.text or "").strip() == registration_code:
+        if active_registration_code and (message.text or "").strip() == active_registration_code:
             storage.authorize_user(telegram_user_id, display_name=display_name, username=username)
             await message.answer("✅ Доступ открыт. Теперь можно пользоваться ботом.", reply_markup=kb())
             return True
-        if registration_code:
-            await message.answer("🔐 Отправьте код доступа одним сообщением, чтобы подключиться к боту.")
+        if active_registration_code:
+            await message.answer(
+                "🔐 Отправьте код доступа одним сообщением.\n"
+                f"Ваш Telegram ID: `{telegram_user_id}`\n"
+                "Если код только что добавили в .env, просто отправьте его ещё раз.",
+                parse_mode="Markdown",
+            )
             return False
-        await message.answer("Доступ к боту ограничен. Обратитесь к владельцу бота.")
+        await message.answer(
+            "Доступ к боту ограничен.\n"
+            f"Ваш Telegram ID: `{telegram_user_id}`\n"
+            "Добавьте этот ID в AUTHORIZED_TELEGRAM_USER_IDS или задайте REGISTRATION_CODE в .env.",
+            parse_mode="Markdown",
+        )
         return False
+
+    @router.message(Command("id"))
+    async def show_user_id(message: Message) -> None:
+        profile = user_profile(message)
+        if not profile:
+            await message.answer("Не удалось определить пользователя Telegram.")
+            return
+        telegram_user_id, display_name, username = profile
+        username_text = f"@{username}" if username else "—"
+        await message.answer(
+            "🆔 Ваш Telegram ID для доступа к боту:\n"
+            f"`{telegram_user_id}`\n"
+            f"Имя: {display_name or '—'}\n"
+            f"Username: {username_text}",
+            parse_mode="Markdown",
+        )
+
+
+    @router.message(Command("help"))
+    async def help_command(message: Message) -> None:
+        if not await ensure_authorized(message):
+            return
+        await message.answer(help_message(), reply_markup=kb())
 
     @router.message(CommandStart())
     async def start(message: Message, state: FSMContext) -> None:
@@ -109,10 +147,7 @@ def build_router(
             return
         await state.clear()
         remember_user(message)
-        await message.answer(
-            "Здравствуйте. Я помогу фиксировать введения препарата и остаток текущей партии.",
-            reply_markup=kb(),
-        )
+        await message.answer(help_message(), reply_markup=kb())
 
     @router.message(F.text == BTN_CANCEL)
     async def cancel(message: Message, state: FSMContext) -> None:
@@ -288,6 +323,44 @@ def build_router(
             return
         last_injections = storage.get_last_injections(message.from_user.id, limit=1)
         await message.answer(batch_status(batch, last_injections[0] if last_injections else None), reply_markup=kb())
+
+
+    @router.message(F.text == BTN_EXPORT)
+    async def export_history(message: Message) -> None:
+        if not await ensure_authorized(message):
+            return
+        injections = storage.get_history(message.from_user.id, limit=1000)
+        if not injections:
+            await message.answer("История пуста — экспортировать пока нечего.", reply_markup=kb())
+            return
+        csv_text = injections_csv(injections)
+        document = BufferedInputFile(csv_text.encode("utf-8-sig"), filename="seksov-history.csv")
+        await message.answer_document(document, caption="📤 История введений в CSV", reply_markup=kb())
+
+
+    @router.message(F.text == BTN_BACKUP)
+    async def backup_database(message: Message) -> None:
+        if not await ensure_authorized(message):
+            return
+        if message.from_user.id not in admin_user_ids:
+            await message.answer("💾 Бэкап доступен только администраторам из ADMIN_TELEGRAM_USER_IDS.", reply_markup=kb())
+            return
+        if not storage.path.exists():
+            await message.answer("База данных пока не создана.", reply_markup=kb())
+            return
+        document = BufferedInputFile(storage.backup_bytes(), filename=storage.path.name)
+        await message.answer_document(document, caption="💾 Резервная копия базы SEKSOV", reply_markup=kb())
+
+    @router.message(F.text == BTN_UNDO_LAST)
+    async def undo_last_injection(message: Message) -> None:
+        if not await ensure_authorized(message):
+            return
+        undone = storage.undo_last_injection(message.from_user.id)
+        if not undone:
+            await message.answer("Нет введений, которые можно отменить.", reply_markup=kb())
+            return
+        injection, batch = undone
+        await message.answer(undo_injection_message(injection, batch), reply_markup=kb())
 
     @router.message(F.text == BTN_LAST)
     async def last(message: Message) -> None:

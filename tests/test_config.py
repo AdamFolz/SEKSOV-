@@ -26,3 +26,60 @@ def test_settings_support_registration_code(monkeypatch) -> None:
     settings = load_settings()
 
     assert settings.registration_code == "family-code"
+
+
+def test_read_registration_code_from_env_file(tmp_path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("REGISTRATION_CODE= family123 \n", encoding="utf-8")
+
+    from seksov_bot.config import read_registration_code_from_env_file
+
+    assert read_registration_code_from_env_file(env_file) == "family123"
+
+
+def test_read_registration_code_from_env_file_returns_none_for_missing_value(tmp_path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("BOT_TOKEN=123\n", encoding="utf-8")
+
+    from seksov_bot.config import read_registration_code_from_env_file
+
+    assert read_registration_code_from_env_file(env_file) is None
+
+
+def test_settings_support_mini_app_options(monkeypatch) -> None:
+    monkeypatch.setenv("BOT_TOKEN", "123:token")
+    monkeypatch.setenv("WEB_APP_URL", "https://example.com/app")
+    monkeypatch.setenv("WEB_HOST", "127.0.0.1")
+    monkeypatch.setenv("WEB_PORT", "8080")
+    monkeypatch.setenv("WEB_DEV_MODE", "true")
+
+    from seksov_bot.config import load_settings
+
+    settings = load_settings()
+
+    assert settings.web_app_url == "https://example.com/app"
+    assert settings.web_host == "127.0.0.1"
+    assert settings.web_port == 8080
+    assert settings.web_dev_mode is True
+
+
+def test_settings_support_admin_user_ids(monkeypatch) -> None:
+    monkeypatch.setenv("BOT_TOKEN", "123:token")
+    monkeypatch.setenv("ADMIN_TELEGRAM_USER_IDS", "100,200")
+
+    from seksov_bot.config import load_settings
+
+    settings = load_settings()
+
+    assert settings.admin_telegram_user_ids == (100, 200)
+
+
+def test_web_dev_mode_is_limited_to_local_host(monkeypatch) -> None:
+    monkeypatch.setenv("BOT_TOKEN", "123:token")
+    monkeypatch.setenv("WEB_DEV_MODE", "1")
+    monkeypatch.setenv("WEB_HOST", "0.0.0.0")
+
+    from seksov_bot.config import load_settings
+
+    with pytest.raises(RuntimeError):
+        load_settings()

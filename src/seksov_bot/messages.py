@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import csv
+from io import StringIO
+
 from .domain import Batch, Injection, format_dt, format_ml
 
 
@@ -39,4 +42,49 @@ def saved_injection_message(current: Injection, previous: Injection | None, batc
         f"Предыдущий: {previous_text}\n"
         f"Введение: {format_ml(current.volume_ml)}, {current.route.value}, {current.site}\n"
         f"Остаток: {format_ml(batch.remaining_volume_ml)} / {format_ml(batch.total_volume_ml)}"
+    )
+
+
+def injections_csv(injections: list[Injection]) -> str:
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "injected_at",
+        "volume_ml",
+        "route",
+        "site",
+        "remaining_after_ml",
+        "batch_id",
+    ])
+    for injection in injections:
+        writer.writerow([
+            injection.injected_at.isoformat(),
+            str(injection.volume_ml.normalize()),
+            injection.route.value,
+            injection.site,
+            str(injection.remaining_after_ml.normalize()) if injection.remaining_after_ml is not None else "",
+            injection.batch_id,
+        ])
+    return output.getvalue()
+
+
+def help_message() -> str:
+    return (
+        "ℹ️ Как пользоваться ботом\n"
+        "1. Создайте партию: ➕ Новая партия.\n"
+        "2. Фиксируйте введение: 💉 1/2/3 мл.\n"
+        "3. Смотрите остаток: 📊 Статус.\n"
+        "4. История: 📜 История или 📤 Экспорт CSV.\n"
+        "5. Ошиблись: ↩️ Отменить последнее.\n"
+        "6. Резервная копия: 💾 Бэкап.\n"
+        "Команда /id показывает Telegram ID для доступа."
+    )
+
+
+def undo_injection_message(injection: Injection, batch: Batch) -> str:
+    return (
+        "↩️ Последняя запись отменена\n"
+        f"Отменено: {format_dt(injection.injected_at)} · {format_ml(injection.volume_ml)} · "
+        f"{injection.route.value}, {injection.site}\n"
+        f"Остаток восстановлен: {format_ml(batch.remaining_volume_ml)} / {format_ml(batch.total_volume_ml)}"
     )
