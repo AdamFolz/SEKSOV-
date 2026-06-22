@@ -7,7 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 from threading import RLock
 
-from .domain import ActiveBatchError, Batch, Injection, InjectionRoute, utcnow
+from .domain import ActiveBatchError, Batch, DomainError, Injection, InjectionRoute, utcnow
 
 
 def _adapt_decimal(value: Decimal) -> str:
@@ -270,8 +270,18 @@ class Storage:
         with self._lock:
             user_id = self.get_or_create_user(telegram_user_id)
             now = utcnow()
-            with self.connection:
-                remaining_after_ml = batch.remaining_volume_ml - volume_ml
+            self.connection.execute("BEGIN IMMEDIATE")
+            try:
+                current_row = self.connection.execute(
+                    "SELECT * FROM batches WHERE id = ? AND user_id = ? AND is_current = 1",
+                    (batch.id, user_id),
+                ).fetchone()
+                if not current_row:
+                    raise DomainError("Текущая партия не найдена. Создайте новую партию.")
+                current_batch = self._batch_from_row(current_row)
+                remaining_after_ml = current_batch.remaining_volume_ml - volume_ml
+                if remaining_after_ml < 0:
+                    raise DomainError("В текущей партии недостаточно остатка для выбранного объёма.")
                 cursor = self.connection.execute(
                     """
                     INSERT INTO injections (
@@ -285,6 +295,11 @@ class Storage:
                     "UPDATE batches SET remaining_volume_ml = ?, is_current = ? WHERE id = ? AND user_id = ?",
                     (remaining_after_ml, is_current, batch.id, user_id),
                 )
+            except Exception:
+                self.connection.rollback()
+                raise
+            else:
+                self.connection.commit()
             return Injection(int(cursor.lastrowid), user_id, batch.id, now, route, site, volume_ml, remaining_after_ml)
 
     def get_last_injections(self, telegram_user_id: int, limit: int = 2) -> list[Injection]:

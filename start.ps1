@@ -27,7 +27,7 @@ Write-Host "Installing dependencies from requirements.txt ..."
 
 if (-not (Test-Path ".\.env")) {
     Copy-Item ".\.env.example" ".\.env"
-    Write-Host "Created .env from .env.example. Fill BOT_TOKEN and AUTHORIZED_TELEGRAM_USER_IDS, then run this script again."
+    Write-Host "Created .env from .env.example. Fill BOT_TOKEN and access settings, then run this script again."
     exit 1
 }
 

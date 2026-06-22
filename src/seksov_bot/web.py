@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -17,9 +18,14 @@ from .domain import Batch, Injection, format_dt, format_ml
 from .storage import Storage
 
 STATIC_DIR = Path(__file__).with_name("web_static")
+INIT_DATA_MAX_AGE_SECONDS = 24 * 60 * 60
 
 
-def validate_telegram_init_data(init_data: str, bot_token: str) -> dict[str, Any]:
+def validate_telegram_init_data(
+    init_data: str,
+    bot_token: str,
+    max_age_seconds: int = INIT_DATA_MAX_AGE_SECONDS,
+) -> dict[str, Any]:
     parsed = dict(parse_qsl(init_data, keep_blank_values=True))
     received_hash = parsed.pop("hash", None)
     if not received_hash:
@@ -29,6 +35,18 @@ def validate_telegram_init_data(init_data: str, bot_token: str) -> dict[str, Any
     calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(calculated_hash, received_hash):
         raise ValueError("Invalid Telegram WebApp signature")
+    auth_date_raw = parsed.get("auth_date")
+    if not auth_date_raw:
+        raise ValueError("Telegram WebApp auth_date is missing")
+    try:
+        auth_date = int(auth_date_raw)
+    except ValueError as exc:
+        raise ValueError("Telegram WebApp auth_date is invalid") from exc
+    now = int(time.time())
+    if auth_date > now + 60:
+        raise ValueError("Telegram WebApp auth_date is in the future")
+    if now - auth_date > max_age_seconds:
+        raise ValueError("Telegram WebApp init data is expired")
     user_raw = parsed.get("user")
     if not user_raw:
         raise ValueError("Telegram WebApp user is missing")

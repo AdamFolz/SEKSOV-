@@ -252,3 +252,19 @@ def test_backup_bytes_returns_sqlite_snapshot(tmp_path) -> None:
         assert snapshot.startswith(b"SQLite format 3")
     finally:
         storage.close()
+
+
+def test_record_injection_rereads_current_batch_before_subtracting(tmp_path) -> None:
+    storage = Storage(tmp_path / "db.sqlite3")
+    storage.migrate()
+    try:
+        batch = storage.create_batch(42, Decimal("100"), "мг", Decimal("5"))
+
+        first = storage.record_injection(42, batch, InjectionRoute.INTRAMUSCULAR, "правая нога", Decimal("1"))
+        second = storage.record_injection(42, batch, InjectionRoute.INTRAMUSCULAR, "левая нога", Decimal("1"))
+
+        assert first.remaining_after_ml == Decimal("4")
+        assert second.remaining_after_ml == Decimal("3")
+        assert storage.get_current_batch(42).remaining_volume_ml == Decimal("3")
+    finally:
+        storage.close()

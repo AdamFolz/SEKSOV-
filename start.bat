@@ -30,7 +30,7 @@ if errorlevel 1 exit /b 1
 
 if not exist ".env" (
     copy ".env.example" ".env" >nul
-    echo Created .env from .env.example. Fill BOT_TOKEN and AUTHORIZED_TELEGRAM_USER_IDS, then run start.bat again.
+    echo Created .env from .env.example. Fill BOT_TOKEN and access settings, then run start.bat again.
     exit /b 1
 )
 
