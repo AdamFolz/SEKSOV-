@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import time
 from decimal import Decimal
 from urllib.parse import urlencode
 
@@ -67,8 +68,12 @@ def test_web_module_import_does_not_require_runtime_environment(monkeypatch) -> 
     assert callable(reloaded.create_app)
 
 
-def signed_init_data(bot_token: str, user_id: int) -> str:
-    payload = {"auth_date": "1710000000", "query_id": "query", "user": json.dumps({"id": user_id})}
+def signed_init_data(bot_token: str, user_id: int, auth_date: int | None = None) -> str:
+    payload = {
+        "auth_date": str(auth_date or int(time.time())),
+        "query_id": "query",
+        "user": json.dumps({"id": user_id}),
+    }
     data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(payload.items()))
     secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
     payload["hash"] = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
@@ -113,6 +118,26 @@ def test_mini_app_rejects_tampered_telegram_init_data(tmp_path, monkeypatch) -> 
     init_data = signed_init_data(bot_token, 42).replace("42", "43")
 
     response = client.get("/api/me", params={"initData": init_data})
+
+    assert response.status_code == 401
+
+    storage.close()
+
+
+def test_mini_app_rejects_expired_telegram_init_data(tmp_path, monkeypatch) -> None:
+    bot_token = "123:token"
+    monkeypatch.setenv("BOT_TOKEN", bot_token)
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "db.sqlite3"))
+    monkeypatch.setenv("WEB_DEV_MODE", "0")
+
+    from seksov_bot.web import create_app
+
+    storage = Storage(tmp_path / "db.sqlite3")
+    storage.migrate()
+    app = create_app(storage=storage)
+    client = TestClient(app)
+
+    response = client.get("/api/me", params={"initData": signed_init_data(bot_token, 42, auth_date=1)})
 
     assert response.status_code == 401
 

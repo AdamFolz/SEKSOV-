@@ -236,9 +236,8 @@ def build_router(
         try:
             ensure_enough_remaining(batch.remaining_volume_ml, volume_ml)
         except DomainError as exc:
-            storage.deactivate_current_batch(message.from_user.id)
             await message.answer(
-                str(exc) + "\n\nТекущая партия помечена завершённой. Создайте новую партию для следующего введения.",
+                str(exc) + "\n\nПартия остаётся активной — выберите меньший объём или завершите её вручную.",
                 reply_markup=kb(),
             )
             return
@@ -280,9 +279,8 @@ def build_router(
             ensure_enough_remaining(batch.remaining_volume_ml, volume_ml)
         except DomainError as exc:
             await state.clear()
-            storage.deactivate_current_batch(message.from_user.id)
             await message.answer(
-                str(exc) + "\n\nТекущая партия помечена завершённой. Создайте новую партию для следующего введения.",
+                str(exc) + "\n\nПартия остаётся активной — выберите меньший объём или завершите её вручную.",
                 reply_markup=kb(),
             )
             return
