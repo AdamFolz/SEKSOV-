@@ -96,8 +96,6 @@ def build_router(
         active_registration_code = current_registration_code()
         if telegram_user_id in authorized_user_ids or storage.is_user_authorized(telegram_user_id):
             return True
-        if not authorized_user_ids and not active_registration_code:
-            return True
         if active_registration_code and (message.text or "").strip() == active_registration_code:
             storage.authorize_user(telegram_user_id, display_name=display_name, username=username)
             await message.answer("✅ Доступ открыт. Теперь можно пользоваться ботом.", reply_markup=kb())
@@ -236,9 +234,8 @@ def build_router(
         try:
             ensure_enough_remaining(batch.remaining_volume_ml, volume_ml)
         except DomainError as exc:
-            storage.deactivate_current_batch(message.from_user.id)
             await message.answer(
-                str(exc) + "\n\nТекущая партия помечена завершённой. Создайте новую партию для следующего введения.",
+                str(exc) + "\n\nПартия остаётся активной — выберите меньший объём или завершите её вручную.",
                 reply_markup=kb(),
             )
             return
@@ -280,9 +277,8 @@ def build_router(
             ensure_enough_remaining(batch.remaining_volume_ml, volume_ml)
         except DomainError as exc:
             await state.clear()
-            storage.deactivate_current_batch(message.from_user.id)
             await message.answer(
-                str(exc) + "\n\nТекущая партия помечена завершённой. Создайте новую партию для следующего введения.",
+                str(exc) + "\n\nПартия остаётся активной — выберите меньший объём или завершите её вручную.",
                 reply_markup=kb(),
             )
             return

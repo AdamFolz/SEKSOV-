@@ -9,10 +9,17 @@ if (tg?.initData) query.set('initData', tg.initData);
 if (devUserId) query.set('telegram_user_id', devUserId);
 
 const setText = (id, value) => { document.getElementById(id).textContent = value; };
+const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  "'": '&#39;',
+  '"': '&quot;',
+}[char]));
 
 function renderEmpty(message) {
-  document.getElementById('history').innerHTML = `<div class="muted">${message}</div>`;
-  document.getElementById('batches').innerHTML = `<div class="muted">Партий пока нет.</div>`;
+  document.getElementById('history').innerHTML = `<div class="muted">${escapeHtml(message)}</div>`;
+  document.getElementById('batches').innerHTML = '<div class="muted">Партий пока нет.</div>';
 }
 
 function render(data) {
@@ -34,13 +41,13 @@ function render(data) {
   document.getElementById('history').innerHTML = (data.history || []).map(item => `
     <article class="event">
       <span class="dot"></span>
-      <div><strong>${item.volumeMl} · ${item.route}</strong><small>${item.injectedAt} · ${item.site}</small></div>
-      <span class="badge">${item.remainingAfterMl}</span>
+      <div><strong>${escapeHtml(item.volumeMl)} · ${escapeHtml(item.route)}</strong><small>${escapeHtml(item.injectedAt)} · ${escapeHtml(item.site)}</small></div>
+      <span class="badge">${escapeHtml(item.remainingAfterMl)}</span>
     </article>
   `).join('') || '<div class="muted">Записей пока нет.</div>';
   document.getElementById('batches').innerHTML = (data.batches || []).map(item => `
     <article class="batch">
-      <div><strong>${item.remainingMl} / ${item.totalMl}</strong><div class="muted">${item.drugAmount} ${item.drugUnit} · ${item.createdAt}</div></div>
+      <div><strong>${escapeHtml(item.remainingMl)} / ${escapeHtml(item.totalMl)}</strong><div class="muted">${escapeHtml(item.drugAmount)} ${escapeHtml(item.drugUnit)} · ${escapeHtml(item.createdAt)}</div></div>
       <span class="badge">${item.isCurrent ? 'активна' : 'завершена'}</span>
     </article>
   `).join('') || '<div class="muted">Партий пока нет.</div>';
