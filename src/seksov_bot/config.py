@@ -24,6 +24,17 @@ class Settings:
     web_dev_mode: bool
 
 
+def validate_bot_token(raw_value: str) -> str:
+    token = raw_value.strip()
+    if not token:
+        raise RuntimeError("BOT_TOKEN is required")
+    if "replace_me" in token.lower() or "change_me" in token.lower():
+        raise RuntimeError("BOT_TOKEN must be replaced with the real token from BotFather")
+    if ":" not in token:
+        raise RuntimeError("BOT_TOKEN must look like a Telegram bot token from BotFather")
+    return token
+
+
 def parse_authorized_user_ids(raw_value: str) -> tuple[int, ...]:
     cleaned = raw_value.strip()
     if not cleaned:
@@ -52,9 +63,7 @@ def read_registration_code_from_env_file(path: Path | str = ".env") -> str | Non
 
 def load_settings() -> Settings:
     load_dotenv()
-    token = os.getenv("BOT_TOKEN", "").strip()
-    if not token:
-        raise RuntimeError("BOT_TOKEN is required")
+    token = validate_bot_token(os.getenv("BOT_TOKEN", ""))
     database_path = Path(os.getenv("DATABASE_PATH", "data/seksov.sqlite3"))
     try:
         dose = parse_positive_decimal(os.getenv("STANDARD_DOSE_ML", "1.0"), "STANDARD_DOSE_ML")

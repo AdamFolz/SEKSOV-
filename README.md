@@ -59,7 +59,7 @@ python run.py
 
 | Переменная | Описание | По умолчанию |
 | --- | --- | --- |
-| `BOT_TOKEN` | токен Telegram-бота от BotFather | обязательно |
+| `BOT_TOKEN` | реальный токен Telegram-бота от BotFather; placeholder из `.env.example` намеренно не принимается | обязательно |
 | `DATABASE_PATH` | путь к SQLite-базе | `data/seksov.sqlite3` |
 | `STANDARD_DOSE_ML` | стандартный объём одного введения | `1.0` |
 | `AUTHORIZED_TELEGRAM_USER_IDS` | необязательный allowlist Telegram ID через запятую для пользователей, которым доступ открыт сразу | пусто |
