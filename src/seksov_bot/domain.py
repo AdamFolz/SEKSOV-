@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from enum import StrEnum
 
 
@@ -89,11 +89,14 @@ def utcnow() -> datetime:
 def parse_positive_decimal(value: str, field_name: str) -> Decimal:
     try:
         parsed = Decimal(value.replace(",", ".").strip())
-    except Exception as exc:
+        if not parsed.is_finite():
+            raise InvalidOperation
+        quantized = parsed.quantize(ML_QUANT, rounding=ROUND_HALF_UP)
+    except (InvalidOperation, ValueError) as exc:
         raise DomainError(f"{field_name}: введите число больше нуля") from exc
-    if parsed <= 0:
+    if quantized <= 0:
         raise DomainError(f"{field_name}: введите число больше нуля")
-    return parsed.quantize(ML_QUANT, rounding=ROUND_HALF_UP)
+    return quantized
 
 
 def validate_drug_unit(unit: str) -> str:
