@@ -96,8 +96,6 @@ def build_router(
         active_registration_code = current_registration_code()
         if telegram_user_id in authorized_user_ids or storage.is_user_authorized(telegram_user_id):
             return True
-        if not authorized_user_ids and not active_registration_code:
-            return True
         if active_registration_code and (message.text or "").strip() == active_registration_code:
             storage.authorize_user(telegram_user_id, display_name=display_name, username=username)
             await message.answer("✅ Доступ открыт. Теперь можно пользоваться ботом.", reply_markup=kb())

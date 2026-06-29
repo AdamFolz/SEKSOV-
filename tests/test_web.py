@@ -85,7 +85,7 @@ def test_mini_app_accepts_valid_signed_telegram_init_data(tmp_path, monkeypatch)
     monkeypatch.setenv("BOT_TOKEN", bot_token)
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "db.sqlite3"))
     monkeypatch.setenv("WEB_DEV_MODE", "0")
-    monkeypatch.delenv("AUTHORIZED_TELEGRAM_USER_IDS", raising=False)
+    monkeypatch.setenv("AUTHORIZED_TELEGRAM_USER_IDS", "42")
     monkeypatch.delenv("REGISTRATION_CODE", raising=False)
 
     from seksov_bot.web import create_app
@@ -140,5 +140,27 @@ def test_mini_app_rejects_expired_telegram_init_data(tmp_path, monkeypatch) -> N
     response = client.get("/api/me", params={"initData": signed_init_data(bot_token, 42, auth_date=1)})
 
     assert response.status_code == 401
+
+    storage.close()
+
+
+def test_mini_app_rejects_authorized_signature_without_access_configuration(tmp_path, monkeypatch) -> None:
+    bot_token = "123:token"
+    monkeypatch.setenv("BOT_TOKEN", bot_token)
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "db.sqlite3"))
+    monkeypatch.setenv("WEB_DEV_MODE", "0")
+    monkeypatch.delenv("AUTHORIZED_TELEGRAM_USER_IDS", raising=False)
+    monkeypatch.delenv("REGISTRATION_CODE", raising=False)
+
+    from seksov_bot.web import create_app
+
+    storage = Storage(tmp_path / "db.sqlite3")
+    storage.migrate()
+    app = create_app(storage=storage)
+    client = TestClient(app)
+
+    response = client.get("/api/me", params={"initData": signed_init_data(bot_token, 42)})
+
+    assert response.status_code == 403
 
     storage.close()

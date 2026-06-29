@@ -1,6 +1,21 @@
 import pytest
 
-from seksov_bot.config import parse_authorized_user_ids
+from seksov_bot.config import parse_authorized_user_ids, validate_bot_token
+
+
+def test_validate_bot_token_rejects_empty_or_placeholder_values() -> None:
+    for token in ("", "123456:replace_me", "123456:change_me"):
+        with pytest.raises(RuntimeError):
+            validate_bot_token(token)
+
+
+def test_validate_bot_token_requires_telegram_separator() -> None:
+    with pytest.raises(RuntimeError):
+        validate_bot_token("not-a-real-token")
+
+
+def test_validate_bot_token_accepts_configured_token() -> None:
+    assert validate_bot_token(" 123:token ") == "123:token"
 
 
 def test_parse_authorized_user_ids_accepts_empty_value() -> None:

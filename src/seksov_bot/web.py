@@ -123,7 +123,9 @@ def create_app(storage: Storage | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         user_id = resolve_telegram_user_id(initData, telegram_user_id)
         profile = app_storage.get_user_profile(user_id)
-        access_is_restricted = bool(settings.authorized_telegram_user_ids or settings.registration_code)
+        access_is_restricted = (
+            bool(settings.authorized_telegram_user_ids or settings.registration_code) or not settings.web_dev_mode
+        )
         if access_is_restricted and user_id not in settings.authorized_telegram_user_ids:
             if not profile or not profile["is_authorized"]:
                 raise HTTPException(status_code=403, detail="User is not authorized")
