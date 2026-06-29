@@ -1,7 +1,6 @@
 from decimal import Decimal
 
 from seksov_bot.keyboards import (
-    BTN_EXPORT,
     BTN_FINISH_BATCH,
     COMMON_DRUG_UNITS,
     dose_options,
